@@ -1,0 +1,14 @@
+[PART 1: THE VISION]
+LearnOutLoud is not just a voice assistant; it is a bridge to digital independence. For a blind user, a computer screen is a wall. Our AI turns that wall into a conversation. By using Llama 3.3 and FastAPI, we process natural language commands to perform complex local tasks that usually require sight.
+
+[PART 2: SPATIAL INTELLIGENCE]
+One of the most difficult tasks for a visually impaired person is maintaining orientation in a new room. Our assistant uses a coordinate-mapping logic. When the user describes their environment, the AI builds a virtual 3D map. If the user moves, the AI recalculates the position of every object—doors, windows, and furniture—relative to the user's new facing direction.
+
+[PART 3: DOCUMENT ACCESSIBILITY]
+Most screen readers are "all or nothing." They start at the top and read until the end. Our "Chunked Reading" system allows for granular control. By breaking PDFs, Word docs, and Text files into segments, the user can pause to think, skip sections, or stop entirely without losing their place. This mimics the way a sighted person skims a page.
+
+[PART 4: MULTILINGUAL REACH]
+Accessibility should not have a language barrier. Our system supports Hindi, Telugu, Malayalam, and Kannada. This ensures that users across India can interact with their technology in their mother tongue, making the assistant feel less like a machine and more like a companion.
+
+[PART 5: FUTURE SCOPE]
+The next step for LearnOutLoud is computer vision integration. By connecting a camera feed, the AI will not only read the files on the laptop but also describe the physical objects on the desk, recognize currency notes, and read printed mail in real-time.

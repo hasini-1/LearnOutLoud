@@ -1,0 +1,337 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
+const sharp = require('sharp');
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use('/faces', express.static(path.join(__dirname, 'faces')));
+
+// MongoDB connection with optimized settings
+mongoose.connect('mongodb://localhost:27017/voice_assistant_db', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  bufferCommands: false, // Disable buffering for faster response
+  bufferMaxEntries: 0
+})
+.then(() => {
+  console.log('✅ MongoDB Connected Successfully');
+  mongoose.set('strictQuery', true);
+})
+.catch(err => console.error('❌ MongoDB connection error:', err));
+
+// Create directories
+const facesDir = path.join(__dirname, 'faces');
+if (!fs.existsSync(facesDir)) fs.mkdirSync(facesDir);
+
+// Configure multer for memory storage (faster than disk)
+const upload = multer({ 
+  storage: multer.memoryStorage(), // Store in memory, not on disk
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only images are allowed'));
+    }
+  }
+});
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  faceImages: [{ type: String }],
+  primaryFaceImage: { type: String, required: true },
+  faceDescriptor: { type: Array, required: true },
+  lastLogin: { type: Date },
+  loginCount: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const User = mongoose.model('User', userSchema);
+
+// Face Schema with index for faster queries
+const faceSchema = new mongoose.Schema({
+  userId: { type: String, required: true, unique: true },
+  name: { type: String, required: true, unique: true },
+  primaryDescriptor: { type: Array, required: true },
+  images: [{ type: String }],
+  primaryImage: { type: String, required: true },
+  lastLogin: { type: Date },
+  loginCount: { type: Number, default: 0 }
+});
+
+// Add index for faster lookups
+faceSchema.index({ name: 1 });
+const Face = mongoose.model('Face', faceSchema);
+
+// Similarity threshold
+const SIMILARITY_THRESHOLD = 0.45;
+
+// Cache for frequently accessed faces
+let faceCache = [];
+let lastCacheUpdate = 0;
+const CACHE_TTL = 60000; // 60 seconds
+
+// Update cache periodically
+async function updateFaceCache() {
+  try {
+    const faces = await Face.find().lean(); // lean() for faster objects
+    faceCache = faces.map(face => ({
+      name: face.name,
+      primaryDescriptor: face.primaryDescriptor,
+      primaryImage: face.primaryImage,
+      userId: face.userId
+    }));
+    lastCacheUpdate = Date.now();
+    console.log(`🔄 Cache updated with ${faceCache.length} faces`);
+  } catch (error) {
+    console.error('Cache update error:', error);
+  }
+}
+
+// Initial cache load
+updateFaceCache();
+setInterval(updateFaceCache, CACHE_TTL);
+
+// Optimized distance calculation
+function calculateDistance(desc1, desc2) {
+  if (!desc1 || !desc2 || desc1.length !== desc2.length) return Infinity;
+  
+  let sum = 0;
+  // Use for loop with local variables for speed
+  const len = desc1.length;
+  for (let i = 0; i < len; i++) {
+    const diff = desc1[i] - desc2[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+// OPTIMIZED CHECK endpoint
+app.post('/api/face/check', upload.single('faceImage'), async (req, res) => {
+  console.log('\n🔍 CHECKING FACE');
+  const startTime = Date.now();
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'Face image required' });
+    }
+
+    const { descriptor } = JSON.parse(req.body.data);
+    
+    if (!descriptor || descriptor.length !== 128) {
+      return res.status(400).json({ success: false, error: 'Invalid descriptor' });
+    }
+    
+    // Use cache for faster access
+    if (faceCache.length === 0) {
+      // No faces in database
+      console.log('👤 No faces in database');
+      
+      // Generate temp filename
+      const tempFilename = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+      const tempImagePath = path.join(facesDir, tempFilename);
+      
+      // Save image
+      await sharp(req.file.buffer)
+        .resize(320, 320, { fit: 'cover' })
+        .jpeg({ quality: 80 })
+        .toFile(tempImagePath);
+      
+      const thumbnailPath = path.join(facesDir, `thumb-${tempFilename}`);
+      await sharp(tempImagePath)
+        .resize(100, 100, { fit: 'cover' })
+        .jpeg({ quality: 70 })
+        .toFile(thumbnailPath);
+      
+      const timeTaken = Date.now() - startTime;
+      console.log(`⏱️ Check completed in ${timeTaken}ms`);
+      
+      return res.json({ 
+        success: false,
+        exists: false,
+        message: 'New user - please register',
+        tempImage: `/faces/${tempFilename}`,
+        tempThumb: `/faces/thumb-${tempFilename}`,
+        descriptor: Array.from(descriptor)
+      });
+    }
+    
+    // Fast comparison using cache
+    let bestMatch = null;
+    let bestDistance = Infinity;
+    
+    for (const face of faceCache) {
+      const distance = calculateDistance(descriptor, face.primaryDescriptor);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestMatch = face;
+      }
+      
+      // Early exit if we find a very close match
+      if (distance < 0.2) break;
+    }
+    
+    console.log(`Best match: ${bestMatch?.name || 'none'} (${bestDistance.toFixed(4)})`);
+    
+    // Save the image
+    const tempFilename = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+    const tempImagePath = path.join(facesDir, tempFilename);
+    
+    await sharp(req.file.buffer)
+      .resize(320, 320, { fit: 'cover' })
+      .jpeg({ quality: 80 })
+      .toFile(tempImagePath);
+    
+    const thumbnailPath = path.join(facesDir, `thumb-${tempFilename}`);
+    await sharp(tempImagePath)
+      .resize(100, 100, { fit: 'cover' })
+      .jpeg({ quality: 70 })
+      .toFile(thumbnailPath);
+    
+    if (bestMatch && bestDistance < SIMILARITY_THRESHOLD) {
+      // Face exists - update login stats asynchronously (don't wait)
+      Face.updateOne(
+        { name: bestMatch.name },
+        { lastLogin: new Date(), $inc: { loginCount: 1 } }
+      ).exec();
+      
+      User.updateOne(
+        { name: bestMatch.name },
+        { lastLogin: new Date(), $inc: { loginCount: 1 } }
+      ).exec();
+      
+      console.log(`✅ Match found: ${bestMatch.name}`);
+      
+      const timeTaken = Date.now() - startTime;
+      console.log(`⏱️ Check completed in ${timeTaken}ms`);
+      
+      return res.json({
+        success: true,
+        exists: true,
+        name: bestMatch.name,
+        faceImage: bestMatch.primaryImage,
+        matchDistance: bestDistance
+      });
+      
+    } else {
+      console.log(`👤 New face detected`);
+      
+      const timeTaken = Date.now() - startTime;
+      console.log(`⏱️ Check completed in ${timeTaken}ms`);
+      
+      return res.json({
+        success: false,
+        exists: false,
+        message: 'New face - please register',
+        tempImage: `/faces/${tempFilename}`,
+        tempThumb: `/faces/thumb-${tempFilename}`,
+        descriptor: Array.from(descriptor),
+        closestMatch: bestMatch ? {
+          name: bestMatch.name,
+          distance: bestDistance,
+          image: bestMatch.primaryImage
+        } : null
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Check error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// OPTIMIZED REGISTER endpoint
+app.post('/api/face/register', async (req, res) => {
+  console.log('\n📝 REGISTERING NEW FACE');
+  const startTime = Date.now();
+  
+  try {
+    const { name, descriptor, imageUrl, thumbnailUrl } = req.body;
+    
+    // Check if name already exists
+    const existingUser = await User.findOne({ name }).lean();
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'Name already exists' });
+    }
+    
+    // Rename temp files to permanent
+    const tempImagePath = path.join(facesDir, path.basename(imageUrl));
+    const tempThumbPath = path.join(facesDir, path.basename(thumbnailUrl));
+    const permImagePath = tempImagePath.replace('temp-', 'face-');
+    const permThumbPath = tempThumbPath.replace('temp-', 'face-');
+    
+    fs.renameSync(tempImagePath, permImagePath);
+    fs.renameSync(tempThumbPath, permThumbPath);
+    
+    const permImageUrl = `/faces/${path.basename(permImagePath)}`;
+    const permThumbUrl = `/faces/${path.basename(permThumbPath)}`;
+    
+    // Save to database
+    const user = new User({ 
+      name, 
+      faceImages: [permImageUrl, permThumbUrl],
+      primaryFaceImage: permImageUrl,
+      faceDescriptor: descriptor
+    });
+    await user.save();
+    
+    const face = new Face({
+      userId: user._id.toString(),
+      name: name,
+      primaryDescriptor: descriptor,
+      images: [permImageUrl, permThumbUrl],
+      primaryImage: permImageUrl,
+      loginCount: 1
+    });
+    await face.save();
+    
+    // Update cache immediately
+    faceCache.push({
+      name: face.name,
+      primaryDescriptor: face.primaryDescriptor,
+      primaryImage: face.primaryImage,
+      userId: face.userId
+    });
+    
+    console.log(`✅ New user registered: ${name}`);
+    
+    const timeTaken = Date.now() - startTime;
+    console.log(`⏱️ Registration completed in ${timeTaken}ms`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Registration successful',
+      name: user.name,
+      faceImage: permImageUrl
+    });
+    
+  } catch (error) {
+    console.error('❌ Registration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all users (optimized)
+app.get('/api/users', async (req, res) => {
+  try {
+    const users = await User.find().select('-faceDescriptor').lean();
+    res.json({ success: true, count: users.length, users });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+const PORT = 5000;
+app.listen(PORT, () => {
+  console.log('\n🚀 OPTIMIZED SERVER STARTED');
+  console.log(`📡 Port: ${PORT}`);
+  console.log(`🎯 Similarity threshold: ${SIMILARITY_THRESHOLD}`);
+  console.log(`📁 Faces directory: ${facesDir}`);
+  console.log('✅ Ready to accept requests\n');
+});
