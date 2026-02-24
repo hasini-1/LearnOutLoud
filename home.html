@@ -27,63 +27,21 @@ body {
   display:flex;
   flex-direction:column;
   min-height:100vh;
-  position: relative;
 }
 
-/* Logout Button */
-.logout-btn {
-  position: absolute;
-  top: 20px;
-  right: 25px;
-  padding: 10px 22px;
-  border-radius: 40px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: linear-gradient(135deg, var(--purple), #5a1dc7);
-  color: white;
-  font-family: 'Syne', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(123,47,247,0.4);
-  transition: 0.3s ease;
-  z-index: 1000;
-}
+.hero { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 20px 80px 20px; }
 
-.logout-btn:hover {
-  background: linear-gradient(135deg, var(--purple-light), var(--cyan));
-  box-shadow: 0 6px 25px rgba(0,212,255,0.6);
-}
-
-.hero {
-  flex:1;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  padding:40px 20px 80px 20px;
-}
-
-.orb-scene {
-  width:220px;
-  height:220px;
-  margin-bottom:30px;
-}
+.orb-scene { width:220px; height:220px; margin-bottom:30px; }
 
 .orb-video {
-  width:220px;
-  height:220px;
-  border-radius:50%;
-  object-fit:cover;
+  width:220px; height:220px;
+  border-radius:50%; object-fit:cover;
   box-shadow: 0 0 0 1px rgba(120,60,240,0.2), 0 0 60px rgba(100,40,220,0.4);
   animation: orbFloat 6s ease-in-out infinite;
   transition:0.3s;
 }
 
-@keyframes orbFloat {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-15px); }
-}
+@keyframes orbFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
 
 .voice-active {
   animation: orbFloat 6s ease-in-out infinite, pulseGlow 1.2s infinite;
@@ -95,109 +53,35 @@ body {
   100% { box-shadow: 0 0 20px rgba(123,47,247,0.6), 0 0 60px rgba(0,212,255,0.5); }
 }
 
-.hero-title {
-  font-family:'Syne',sans-serif;
-  font-size: clamp(24px, 4vw, 42px);
-  font-weight:800;
-  margin-bottom:12px;
-}
+.hero-title { font-family:'Syne',sans-serif; font-size: clamp(24px, 4vw, 42px); font-weight:800; margin-bottom:12px; }
+.line-accent { background: linear-gradient(90deg,#fff,var(--purple-light),var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hero-sub { color:var(--muted); font-size:14px; margin-bottom:30px; }
 
-.line-accent {
-  background: linear-gradient(90deg,#fff,var(--purple-light),var(--cyan));
-  -webkit-background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
+.ask-bar { display:flex; align-items:center; gap:16px; background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:60px; padding:10px 20px; width: 100%; max-width: 500px;}
+.ask-bar input { flex:1; background:none; border:none; outline:none; color:white; font-size:14px; }
 
-.hero-sub {
-  color:var(--muted);
-  font-size:14px;
-  margin-bottom:30px;
-}
+.mic-btn { width:46px; height:46px; border-radius:50%; border:none; background: linear-gradient(135deg,var(--purple),#5a1dc7); display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 4px 20px rgba(123,47,247,0.4); }
+.mic-btn svg { width:20px; height:20px; fill:white; }
 
-.ask-bar {
-  display:flex;
-  align-items:center;
-  gap:16px;
-  background: rgba(255,255,255,0.04);
-  border:1px solid rgba(255,255,255,0.1);
-  border-radius:60px;
-  padding:10px 20px;
-  width: 100%;
-  max-width: 500px;
-}
-
-.ask-bar input {
-  flex:1;
-  background:none;
-  border:none;
-  outline:none;
-  color:white;
-  font-size:14px;
-}
-
-.mic-btn {
-  width:46px;
-  height:46px;
-  border-radius:50%;
-  border:none;
-  background: linear-gradient(135deg,var(--purple),#5a1dc7);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  box-shadow:0 4px 20px rgba(123,47,247,0.4);
-}
-
-.mic-btn svg {
-  width:20px;
-  height:20px;
-  fill:white;
-}
-
-footer {
-  padding:20px;
-  text-align:center;
-  border-top:1px solid rgba(255,255,255,0.05);
-}
-
-.footer-logo {
-  font-family:'Syne',sans-serif;
-  font-weight:800;
-  margin-bottom:5px;
-}
-
-footer p {
-  font-size:12px;
-  color:var(--faint);
-}
+footer { padding:20px; text-align:center; border-top:1px solid rgba(255,255,255,0.05); }
+.footer-logo { font-family:'Syne',sans-serif; font-weight:800; margin-bottom:5px; }
+footer p { font-size:12px; color:var(--faint); }
 </style>
 </head>
 
 <body>
-
-<button id="logoutBtn" class="logout-btn">Logout</button>
-
 <section class="hero">
 <div class="orb-scene">
 <video id="orbVideo" class="orb-video" autoplay muted loop playsinline>
 <source src="voiceassistant.mp4" type="video/mp4">
 </video>
 </div>
-
-<h1 class="hero-title">
-How May I<br><span class="line-accent">Assist You Today?</span>
-</h1>
-
+<h1 class="hero-title">How May I<br><span class="line-accent">Assist You Today?</span></h1>
 <p class="hero-sub">Space: Wake System | Escape: Safety Stop AI Voice</p>
-
 <div class="ask-bar">
 <input type="text" id="manualInput" placeholder="Ask anything..." />
 <button class="mic-btn" id="micBtn">
-<svg viewBox="0 0 24 24">
-<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-<path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="white" stroke-width="2"/>
-<line x1="12" y1="19" x2="12" y2="23" stroke="white" stroke-width="2"/>
-</svg>
+<svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="white" stroke-width="2"/><line x1="12" y1="19" x2="12" y2="23" stroke="white" stroke-width="2"/></svg>
 </button>
 </div>
 </section>
@@ -210,14 +94,11 @@ How May I<br><span class="line-accent">Assist You Today?</span>
 <script>
 const orbVideo = document.getElementById("orbVideo");
 const micBtn = document.getElementById("micBtn");
-const logoutBtn = document.getElementById("logoutBtn");
 const synth = window.speechSynthesis;
-
 let recognition;
 let isSpeaking = false;
-let logoutArmed = false;
 
-/* Beep Sound */
+// Feature 4: Audio Feedback Beeps
 function playBeep(freq, duration) {
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = audioCtx.createOscillator();
@@ -230,16 +111,10 @@ function playBeep(freq, duration) {
     osc.stop(audioCtx.currentTime + (duration/1000));
 }
 
-/* Initialize Mic */
+// Feature 6: Atomic Reset - Re-initializes Mic
 function initMic() {
     if (recognition) recognition.abort();
-
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        alert("Speech Recognition not supported in this browser.");
-        return;
-    }
-
     recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = false;
@@ -251,23 +126,22 @@ function initMic() {
 
     recognition.onresult = async (event) => {
         const text = event.results[event.results.length - 1][0].transcript;
-        stopMic();
-        await sendToBackend(text);
+        // Feature 4: Wake Word
+        if (text.toLowerCase().includes("assistant") || !isSpeaking) {
+            stopMic(); // Feature 6: Echo Cancellation
+            await sendToBackend(text);
+        }
     };
 
-    recognition.onend = () => {
-        orbVideo.classList.remove("voice-active");
-    };
-
+    recognition.onend = () => { if(!isSpeaking) recognition.start(); };
     recognition.start();
 }
 
 function stopMic() {
-    if (recognition) recognition.stop();
     orbVideo.classList.remove("voice-active");
+    if(recognition) recognition.stop();
 }
 
-/* Backend */
 async function sendToBackend(text) {
     try {
         const res = await fetch("http://localhost:8000/talk", {
@@ -282,63 +156,39 @@ async function sendToBackend(text) {
     }
 }
 
-/* Speak */
+// Feature 5: Native Multilingual Adjustments
 function speak(text) {
     isSpeaking = true;
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
+    
+    // Accent Support
+    if(/[ऀ-ॿ]/.test(text)) utterance.lang = 'hi-IN';
+    else if(/[ఀ-౿]/.test(text)) utterance.lang = 'te-IN';
+    else if(/[ಀ-೿]/.test(text)) utterance.lang = 'kn-IN';
+    else utterance.lang = 'en-US';
 
     utterance.onend = () => {
         isSpeaking = false;
+        initMic(); // Atomic Reset
     };
-
     synth.speak(utterance);
 }
 
-/* Logout Logic */
-function performLogout() {
-    stopMic();
-    synth.cancel();
-    playBeep(300, 200);
-
-    speak("You have logged out successfully");
-
-    setTimeout(() => {
-        window.location.href = "login.html";
-    }, 2000);
-}
-
-logoutBtn.onclick = () => {
-    speak("Do you want to log out?");
-    logoutArmed = true;
-};
-
-/* Key Handling */
-window.addEventListener("keydown", (e) => {
-
+// Feature 1: Tactile Control
+window.addEventListener('keydown', (e) => {
     if (e.code === "Space") {
-        e.preventDefault();
+        e.preventDefault(); 
         initMic();
-        return;
+        speak("Hello, I'm LearnOutLoud, your voice assistant. I can read documents, summarize them, and help with spatial navigation. Say list documents to begin or help to learn more.");
     }
-
     if (e.code === "Escape") {
         synth.cancel();
+        isSpeaking = false;
         playBeep(220, 200);
-        return;
-    }
-
-    if (!logoutArmed) {
-        speak("Do you want to log out?");
-        logoutArmed = true;
-    } else {
-        performLogout();
-        logoutArmed = false;
     }
 });
 
 micBtn.onclick = () => initMic();
 </script>
-
 </body>
 </html>

@@ -6,9 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from docx import Document
 import PyPDF2
-from collections import deque  # for limited-size history
+from collections import deque
 
-# Groq optional
+# Groq is optional
 try:
     from groq import Groq
     GROQ_AVAILABLE = True
@@ -32,8 +32,10 @@ current_position = 0
 current_document_name = ""
 current_document_type = ""
 
-# History: list of (user_said, assistant_replied) tuples – newest first
-# Using deque with maxlen → automatically drops oldest entries
+# Speech rate control
+speech_rate = 1.0
+
+# History
 conversation_history = deque(maxlen=12)
 
 DOCUMENT_FOLDER = os.path.join(os.path.expanduser("~"), "Documents")
@@ -42,7 +44,7 @@ class VoiceRequest(BaseModel):
     text: str
 
 # ───────────────────────────────────────────────
-# Document extraction (unchanged)
+# Document extraction functions
 # ───────────────────────────────────────────────
 
 def extract_pdf(path):
@@ -109,7 +111,7 @@ def find_matching_file(spoken: str):
     return candidates[0] if candidates else None
 
 # ───────────────────────────────────────────────
-# Smart extraction (your latest friendly version)
+# Smart extraction
 # ───────────────────────────────────────────────
 
 def smart_extract(cmd_lower: str):
@@ -159,7 +161,7 @@ def smart_extract(cmd_lower: str):
             chunk = " ".join(words[start_i:end_i])
             return f"Approximate pages {start}–{end}:\n{preview(chunk)}"
 
-    # Named sections with friendly fallback
+    # Named sections
     sections = {
         'abstract':     r'(?i)(abstract|अमूर्त|సారాంశం)',
         'introduction': r'(?i)(introduction|intro|परिचय|పరిచయం)',
@@ -178,7 +180,6 @@ def smart_extract(cmd_lower: str):
                     block = "\n".join(lines[i:i+35])
                     return f"{name.title()} (approximate):\n{preview(block)}"
 
-            # Friendly message for normal documents
             if name == 'abstract':
                 return "This document doesn't seem to have a marked abstract section (common in non-research files). Would you like the first few paragraphs? Say 'extract first 5 paragraphs' or 'read'."
             if name == 'introduction':
@@ -203,48 +204,59 @@ def smart_extract(cmd_lower: str):
 
         return f"{direction.title()} {count} paragraph{'s' if count != 1 else ''}:\n{preview('\n\n'.join(selected))}"
 
-    return "Didn't understand which part to extract. Examples:\n• extract page 5\n• extract abstract\n• extract first 4 paragraphs"
+    return "Didn't understand which part to extract. Try:\n• extract page 5\n• extract abstract\n• extract first 4 paragraphs"
 
 # ───────────────────────────────────────────────
-# Add entry to history
+# Speed control
 # ───────────────────────────────────────────────
 
-def add_to_history(user_text: str, assistant_reply: str):
-    conversation_history.appendleft((user_text.strip(), assistant_reply.strip()))
+def handle_speed_command(cmd_lower: str):
+    global speech_rate
+
+    if any(w in cmd_lower for w in ["normal speed", "default speed", "speed 1", "1x"]):
+        speech_rate = 1.0
+        return "Speed set back to normal (1x)."
+
+    speed_match = re.search(r'(?:set speed to|speed|set to)\s*(\d*\.?\d*)\s*(x|times)?', cmd_lower)
+    if speed_match:
+        try:
+            new_rate = float(speed_match.group(1))
+            speech_rate = max(0.5, min(2.5, new_rate))
+            return f"Speed set to {speech_rate:.1f}x."
+        except:
+            pass
+
+    if any(w in cmd_lower for w in ["increase speed", "faster", "speed up", "go faster"]):
+        speech_rate = min(2.5, speech_rate + 0.2)
+        return f"Speed increased to {speech_rate:.1f}x."
+
+    if any(w in cmd_lower for w in ["decrease speed", "slower", "slow down", "go slower"]):
+        speech_rate = max(0.5, speech_rate - 0.2)
+        return f"Speed decreased to {speech_rate:.1f}x."
+
+    return None
 
 # ───────────────────────────────────────────────
-# Main endpoint
+# Main endpoint – fixed general questions
 # ───────────────────────────────────────────────
 
 @app.post("/talk")
 async def talk(req: VoiceRequest):
-    global current_document_text, current_position, current_document_name, current_document_type
+    global current_document_text, current_position, current_document_name, current_document_type, speech_rate
 
     spoken = req.text.strip()
     cmd = spoken.lower()
     print(f"→ Heard: {spoken}")
 
     reply_text = ""
+    response_data = {"reply": "", "rate": round(speech_rate, 2)}
 
-    # ── History commands ────────────────────────────────────────────────
-    if any(w in cmd for w in ["history", "what did i say", "repeat last", "last message", "previous"]):
-        if not conversation_history:
-            reply_text = "No conversation history yet."
-        elif "read" in cmd or "tell" in cmd:
-            lines = []
-            for i, (u, a) in enumerate(list(conversation_history)[:5], 1):
-                lines.append(f"{i}. You said: {u}")
-                lines.append(f"   I said: {a[:180]}{'...' if len(a)>180 else ''}")
-            reply_text = "Recent conversation:\n" + "\n".join(lines)
-        elif "clear" in cmd:
-            conversation_history.clear()
-            reply_text = "Conversation history cleared."
-        else:
-            # show last exchange
-            u, a = conversation_history[0]
-            reply_text = f"Last: You said '{u}'. I replied: {a}"
+    # 1. Speed commands
+    speed_reply = handle_speed_command(cmd)
+    if speed_reply:
+        reply_text = speed_reply
 
-    # ── Document commands ───────────────────────────────────────────────
+    # 2. List documents
     elif any(x in cmd for x in ["list", "files", "documents", "show"]):
         if not os.path.exists(DOCUMENT_FOLDER):
             reply_text = "Documents folder not found."
@@ -256,9 +268,9 @@ async def talk(req: VoiceRequest):
             else:
                 reply_text = f"Found: {', '.join(files)}. Say the name to open."
 
-    else:
-        matched = find_matching_file(spoken)
-        if matched and (any(x in cmd for x in ["load","open","read","start"]) or len(spoken.split()) <= 4):
+    # 3. Load document (auto or explicit)
+    elif matched := find_matching_file(spoken):
+        if any(x in cmd for x in ["load","open","read","start"]) or len(spoken.split()) <= 4:
             path = os.path.join(DOCUMENT_FOLDER, matched)
             content = read_document(path)
 
@@ -272,20 +284,24 @@ async def talk(req: VoiceRequest):
                 words = len(content.split())
                 reply_text = f"Loaded {current_document_name} ({current_document_type}) – ~{words} words. Say read, extract abstract, extract page 3, etc."
 
-        elif not current_document_text:
-            reply_text = "No document open. Say a filename or 'list documents'."
+    # 4. Document-dependent commands
+    elif "extract" in cmd:
+        result = smart_extract(cmd)
+        if result:
+            reply_text = result
 
-        elif "extract" in cmd:
-            result = smart_extract(cmd)
-            if result:
-                reply_text = result
-
-        elif any(x in cmd for x in ["read", "start", "begin"]):
+    elif any(x in cmd for x in ["read", "start", "begin"]):
+        if not current_document_text:
+            reply_text = "No document loaded. Say a filename or 'list documents' first."
+        else:
             current_position = 0
             chunk = current_document_text[:650]
             reply_text = f"Reading {current_document_name}...\n{chunk}\n\nSay continue, pause, stop."
 
-        elif any(x in cmd for x in ["continue", "more", "next"]):
+    elif any(x in cmd for x in ["continue", "more", "next"]):
+        if not current_document_text:
+            reply_text = "No document loaded. Load one first."
+        else:
             chunk = current_document_text[current_position:current_position+650]
             if not chunk:
                 reply_text = f"End of {current_document_name}."
@@ -294,20 +310,35 @@ async def talk(req: VoiceRequest):
                 perc = round(current_position / len(current_document_text) * 100)
                 reply_text = f"{chunk}\n[Progress: {perc}%]"
 
-        elif "pause" in cmd:
+    elif "pause" in cmd:
+        if current_document_text:
             reply_text = "Paused. Say continue or resume."
+        else:
+            reply_text = "Nothing is playing right now."
 
-        elif "resume" in cmd:
+    elif "resume" in cmd:
+        if current_document_text:
             reply_text = "Resuming... Say continue."
+        else:
+            reply_text = "No document to resume. Load one first."
 
-        elif any(x in cmd for x in ["stop", "end", "close"]):
+    elif any(x in cmd for x in ["stop", "end", "close"]):
+        if current_document_text:
             current_document_text = ""
             current_position = 0
             current_document_name = ""
             current_document_type = ""
             reply_text = "Document closed."
+        else:
+            reply_text = "No document is open."
 
-        elif any(x in cmd for x in ["summary", "summarize"]) and GROQ_AVAILABLE:
+    # Summary (only when document is loaded)
+    elif any(x in cmd for x in ["summary", "summarize"]):
+        if not current_document_text:
+            reply_text = "No document loaded. Load one first to get a summary."
+        elif not GROQ_AVAILABLE:
+            reply_text = "Summary unavailable right now."
+        else:
             try:
                 short = current_document_text[:3000] + "..." if len(current_document_text) > 3000 else current_document_text
                 r = client.chat.completions.create(
@@ -317,21 +348,42 @@ async def talk(req: VoiceRequest):
                     max_tokens=250
                 )
                 reply_text = "Summary:\n" + r.choices[0].message.content.strip()
-            except:
+            except Exception as e:
+                print("Summary failed:", e)
                 reply_text = "Could not generate summary right now."
 
+    # ── General / common questions – always allowed, runs last ──────────
+    else:
+        if GROQ_AVAILABLE:
+            try:
+                system_prompt = (
+                    "You are LearnOutLoud, a friendly voice assistant for visually impaired students. "
+                    "Answer clearly, concisely, naturally and helpfully. Use simple language. "
+                    "If the question relates to a loaded document, refer to it if relevant. "
+                    "Otherwise answer normally like a helpful companion. "
+                    "Keep answers suitable for voice output — short, clear, no very long lists."
+                )
+                r = client.chat.completions.create(
+                    model="llama-3.1-8b-instant",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": spoken}
+                    ],
+                    temperature=0.7,
+                    max_tokens=400
+                )
+                reply_text = r.choices[0].message.content.strip()
+            except Exception as e:
+                print("General QA error:", str(e))
+                reply_text = "Sorry, I couldn't answer that right now. Try asking about a loaded document or say 'help'."
         else:
-            reply_text = "Sorry, didn't understand. Try 'list documents', filename, 'read', 'extract page 3', 'summary'..."
+            reply_text = "I'm currently unable to answer general questions. I can still read documents, extract parts, change speed, etc."
 
-    # ── Save to history (except pure history commands) ──────────────────
-    if not any(w in cmd for w in ["history", "repeat last", "clear history"]):
-        add_to_history(spoken, reply_text)
-
-    print(f"→ Replied: {reply_text[:120]}...")
-    return {"reply": reply_text}
+    response_data["reply"] = reply_text
+    return response_data
 
 if __name__ == "__main__":
-    print("LearnOutLoud server with history support")
-    print(f"Documents: {DOCUMENT_FOLDER}")
-    print("New commands: 'show history', 'read history', 'repeat last', 'clear history'")
+    print("LearnOutLoud server – general questions fixed")
+    print(f"Documents folder: {DOCUMENT_FOLDER}")
+    print("Now supports questions like 'explain linear regression', 'what is photosynthesis', etc. even without a document loaded.")
     uvicorn.run(app, host="0.0.0.0", port=8000)
