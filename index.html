@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LearnOutLoud — Document Reader for Visually Impaired</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #07070f;
+  --purple: #7b2ff7;
+  --purple-light: #9b5de5;
+  --cyan: #00d4ff;
+  --text: #f0f0f8;
+  --muted: rgba(240,240,248,0.45);
+  --success: #00ff88;
+  --warning: #ffaa00;
+  --error: #ff5555;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  overflow: hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:100vh;
+}
+
+.hero { 
+  flex:1; 
+  display:flex; 
+  flex-direction:column; 
+  align-items:center; 
+  justify-content:center; 
+  text-align:center; 
+  padding:40px 20px; 
+}
+
+.orb-scene { 
+  width:200px; 
+  height:200px; 
+  margin-bottom:30px; 
+  position: relative;
+}
+
+.orb-video {
+  width:200px; 
+  height:200px;
+  border-radius:50%; 
+  object-fit:cover;
+  box-shadow: 0 0 60px rgba(100,40,220,0.4);
+  transition:0.3s;
+  background: #1a1a2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 80px;
+  color: var(--purple-light);
+}
+
+.orb-video::after {
+  content: "🔊";
+}
+
+.voice-active {
+  animation: pulseGlow 1.2s infinite;
+  box-shadow: 0 0 100px var(--purple);
+}
+
+.voice-listening {
+  animation: listenPulse 0.8s infinite;
+  box-shadow: 0 0 80px var(--cyan);
+}
+
+@keyframes pulseGlow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+@keyframes listenPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 80px var(--cyan); }
+  50% { transform: scale(1.02); box-shadow: 0 0 120px var(--purple-light); }
+}
+
+.status-indicator {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  margin: 10px auto;
+  transition: all 0.3s;
+}
+
+.status-active { background: var(--success); box-shadow: 0 0 20px var(--success); }
+.status-paused { background: var(--warning); box-shadow: 0 0 20px var(--warning); }
+.status-listening { background: var(--cyan); box-shadow: 0 0 20px var(--cyan); }
+.status-error { background: var(--error); box-shadow: 0 0 20px var(--error); }
+
+.hero-title { 
+  font-family:'Syne',sans-serif; 
+  font-size: clamp(24px, 4vw, 42px); 
+  font-weight:800; 
+  margin-bottom:12px; 
+}
+
+.line-accent { 
+  background: linear-gradient(90deg,#fff,var(--purple-light),var(--cyan)); 
+  -webkit-background-clip:text; 
+  -webkit-text-fill-color:transparent; 
+}
+
+.hero-sub { 
+  color:var(--muted); 
+  font-size:16px; 
+  margin-bottom:30px;
+  line-height: 1.6;
+}
+
+.document-info {
+  background: rgba(123, 47, 247, 0.1);
+  border: 1px solid var(--purple);
+  border-radius: 30px;
+  padding: 10px 20px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  max-width: 500px;
+  width: 100%;
+  display: none;
+}
+
+.document-info.active {
+  display: block;
+}
+
+.document-name {
+  color: var(--cyan);
+  font-weight: bold;
+}
+
+.document-progress {
+  margin-left: 10px;
+  color: var(--muted);
+}
+
+.ask-bar { 
+  display:flex; 
+  align-items:center; 
+  gap:16px; 
+  background: rgba(255,255,255,0.04); 
+  border:1px solid rgba(255,255,255,0.1); 
+  border-radius:60px; 
+  padding:10px 20px; 
+  width: 100%; 
+  max-width: 500px;
+  margin-bottom: 20px;
+}
+
+.ask-bar input { 
+  flex:1; 
+  background:none; 
+  border:none; 
+  outline:none; 
+  color:white; 
+  font-size:16px; 
+}
+
+.ask-bar input::placeholder {
+  color: var(--muted);
+}
+
+.mic-btn { 
+  width:50px; 
+  height:50px; 
+  border-radius:50%; 
+  border:none; 
+  background: linear-gradient(135deg,var(--purple),#5a1dc7); 
+  display:flex; 
+  align-items:center; 
+  justify-content:center; 
+  cursor:pointer; 
+  transition: transform 0.2s;
+}
+
+.mic-btn:hover { transform: scale(1.05); }
+.mic-btn:active { transform: scale(0.95); }
+
+.mic-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.keyboard-shortcuts {
+  margin-top: 20px;
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  font-size: 14px;
+  flex-wrap: wrap;
+}
+
+.shortcut-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcut-key {
+  background: rgba(255,255,255,0.1);
+  padding: 8px 15px;
+  border-radius: 10px;
+  font-weight: bold;
+  color: var(--cyan);
+  font-size: 18px;
+  min-width: 70px;
+}
+
+.shortcut-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.command-list {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  max-width: 600px;
+  width: 100%;
+  background: rgba(0,0,0,0.3);
+  border-radius: 20px;
+  padding: 20px;
+}
+
+.command-item {
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.command-item strong {
+  color: var(--cyan);
+  display: block;
+  margin-bottom: 3px;
+}
+
+footer { 
+  padding:20px; 
+  text-align:center; 
+  border-top:1px solid rgba(255,255,255,0.05); 
+}
+
+.footer-logo { 
+  font-family:'Syne',sans-serif; 
+  font-weight:800;
+  color: var(--purple-light);
+}
+
+.footer-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+
+#spatialMap {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0,0,0,0.9);
+  border: 2px solid var(--purple);
+  border-radius: 15px;
+  padding: 15px;
+  font-size: 14px;
+  min-width: 200px;
+  display: none;
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+}
+
+.spatial-title {
+  color: var(--cyan);
+  font-weight: bold;
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.spatial-direction {
+  font-size: 24px;
+  color: var(--purple-light);
+  margin: 10px 0;
+}
+
+.spatial-objects {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+<section class="hero">
+    <div class="orb-scene">
+        <div id="orbVideo" class="orb-video" role="img" aria-label="Assistant orb"></div>
+        <div id="statusIndicator" class="status-indicator"></div>
+    </div>
+    
+    <h1 class="hero-title">Learn Out <span class="line-accent">Loud</span></h1>
+    <p class="hero-sub">Voice-controlled document reader for PDF, Word, and Text files</p>
+    
+    <div id="documentInfo" class="document-info">
+        <span class="document-name" id="docName">No document loaded</span>
+        <span class="document-progress" id="docProgress"></span>
+    </div>
+    
+    <div class="ask-bar">
+        <input type="text" id="manualInput" placeholder="Type your command or press Spacebar..." aria-label="Type your command" />
+        <button class="mic-btn" id="micBtn" aria-label="Start microphone">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="white"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="white" stroke-width="2"/>
+                <line x1="12" y1="19" x2="12" y2="23" stroke="white" stroke-width="2"/>
+            </svg>
+        </button>
+    </div>
+
+    <div class="keyboard-shortcuts">
+        <div class="shortcut-item">
+            <span class="shortcut-key">Space</span>
+            <span class="shortcut-desc">Start/Resume</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-key">ESC</span>
+            <span class="shortcut-desc">Pause</span>
+        </div>
+        <div class="shortcut-item">
+            <span class="shortcut-key">F1</span>
+            <span class="shortcut-desc">Stop</span>
+        </div>
+    </div>
+
+    <div class="command-list">
+        <div class="command-item">
+            <strong>📋 "list documents"</strong>
+            Show all PDF, Word, Text files
+        </div>
+        <div class="command-item">
+            <strong>📖 "load filename"</strong>
+            Load a specific document
+        </div>
+        <div class="command-item">
+            <strong>📖 "read"</strong>
+            Start/continue reading
+        </div>
+        <div class="command-item">
+            <strong>📝 "summary"</strong>
+            Get AI summary
+        </div>
+        <div class="command-item">
+            <strong>🔍 "find word"</strong>
+            Search in document
+        </div>
+        <div class="command-item">
+            <strong>🧭 "turn right/left"</strong>
+            Spatial navigation
+        </div>
+    </div>
+</section>
+
+<div id="spatialMap">
+    <div class="spatial-title">🧭 Spatial Map</div>
+    <div class="spatial-direction" id="spatialDirection">Facing: Front</div>
+    <div class="spatial-objects" id="spatialObjects">No objects mapped</div>
+</div>
+
+<footer>
+    <div class="footer-logo">LearnOutLoud</div>
+    <div class="footer-note">Reading documents from your Windows Documents folder</div>
+    <p class="footer-note">© 2026 LearnOutLoud - Accessibility First</p>
+</footer>
+
+<script>
+// DOM Elements
+const orbVideo = document.getElementById("orbVideo");
+const synth = window.speechSynthesis;
+const statusIndicator = document.getElementById("statusIndicator");
+const documentInfo = document.getElementById("documentInfo");
+const docName = document.getElementById("docName");
+const docProgress = document.getElementById("docProgress");
+const spatialMap = document.getElementById("spatialMap");
+const spatialDirection = document.getElementById("spatialDirection");
+const spatialObjects = document.getElementById("spatialObjects");
+const manualInput = document.getElementById("manualInput");
+const micBtn = document.getElementById("micBtn");
+
+// State variables
+let recognition;
+let isSpeaking = false;
+let isListening = false;
+let isPaused = false;
+let isStopped = false;
+let currentUtterance = null;
+let audioContext = null;
+let isFirstLaunch = true;
+let isReadingDocument = false;
+let currentDocumentName = "";
+let currentDocumentProgress = 0;
+let spatialOrientation = 0;
+const directions = ["Front", "Right", "Back", "Left"];
+let spatialObjectsMap = {};
+
+// Initialize Audio Context
+function getAudioContext() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioContext;
+}
+
+// Beep function
+function playBeep(isStart) {
+    try {
+        const ctx = getAudioContext();
+        if (ctx.state === 'suspended') {
+            ctx.resume().then(() => {
+                actuallyPlayBeep(ctx, isStart);
+            }).catch(() => {});
+        } else {
+            actuallyPlayBeep(ctx, isStart);
+        }
+    } catch (e) {}
+}
+
+function actuallyPlayBeep(ctx, isStart) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    let freq = isStart ? 880 : 440;
+    let duration = 80;
+    
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    osc.frequency.value = freq;
+    osc.start();
+    osc.stop(ctx.currentTime + duration/1000);
+}
+
+// Update document info display
+function updateDocumentInfo(name, progress = 0) {
+    if (name) {
+        documentInfo.classList.add('active');
+        docName.textContent = name;
+        currentDocumentName = name;
+        if (progress > 0) {
+            docProgress.textContent = `${progress}% read`;
+            currentDocumentProgress = progress;
+        } else {
+            docProgress.textContent = '';
+        }
+    } else {
+        documentInfo.classList.remove('active');
+        docName.textContent = 'No document loaded';
+        docProgress.textContent = '';
+        currentDocumentName = '';
+        currentDocumentProgress = 0;
+    }
+}
+
+// Update spatial map display
+function updateSpatialDisplay(direction, objects) {
+    spatialMap.style.display = 'block';
+    spatialDirection.textContent = `Facing: ${directions[direction]}`;
+    
+    if (Object.keys(objects).length > 0) {
+        let objText = [];
+        for (let [obj, dir] of Object.entries(objects)) {
+            objText.push(`${obj} (${dir})`);
+        }
+        spatialObjects.textContent = objText.join(', ');
+    } else {
+        spatialObjects.textContent = 'No objects mapped. Say "door in front" etc.';
+    }
+}
+
+// Initialize microphone
+function initMicrophone() {
+    if (recognition) {
+        try {
+            recognition.abort();
+            recognition.stop();
+        } catch (e) {}
+        recognition = null;
+    }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Speech recognition not supported. Please use Chrome, Edge, or Safari.");
+        return;
+    }
+
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+        isListening = true;
+        orbVideo.classList.add("voice-listening");
+        orbVideo.classList.remove("voice-active");
+        statusIndicator.className = "status-indicator status-listening";
+        console.log("🎤 Listening started");
+    };
+
+    recognition.onresult = async (event) => {
+        const last = event.results.length - 1;
+        const text = event.results[last][0].transcript;
+        console.log("🎤 Heard:", text);
+        
+        // Also show in input box
+        manualInput.value = text;
+        
+        if (!isSpeaking && !isPaused && !isStopped) {
+            stopMicrophone();
+            playBeep(true);
+            await sendToBackend(text);
+        }
+    };
+
+    recognition.onerror = (event) => {
+        console.log("Recognition error:", event.error);
+        if (event.error !== 'no-speech') {
+            statusIndicator.className = "status-indicator status-error";
+            setTimeout(initMicrophone, 2000);
+        }
+    };
+
+    recognition.onend = () => {
+        isListening = false;
+        orbVideo.classList.remove("voice-listening");
+        
+        if (!isSpeaking && !isPaused && !isStopped) {
+            statusIndicator.className = "status-indicator";
+            initMicrophone();
+        }
+    };
+
+    try {
+        recognition.start();
+    } catch (e) {
+        console.error("Failed to start recognition:", e);
+    }
+}
+
+function stopMicrophone() {
+    if (recognition) {
+        try {
+            recognition.stop();
+        } catch (e) {}
+    }
+}
+
+// Send to backend
+async function sendToBackend(text) {
+    try {
+        const res = await fetch("http://localhost:8000/talk", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ text: text })
+        });
+        const data = await res.json();
+        
+        // Check for spatial updates in response
+        if (data.reply.includes("facing") || data.reply.includes("Rotated")) {
+            // Extract orientation from response (simplified)
+            spatialOrientation = (spatialOrientation + 1) % 4;
+            updateSpatialDisplay(spatialOrientation, spatialObjectsMap);
+        }
+        
+        // Check for document loading
+        if (data.reply.includes("loaded successfully")) {
+            const match = data.reply.match(/(.*?)\s\(/);
+            if (match) {
+                updateDocumentInfo(match[1]);
+            }
+        }
+        
+        // Check for progress
+        if (data.reply.includes("Progress:")) {
+            const progressMatch = data.reply.match(/Progress:\s*(\d+)%/);
+            if (progressMatch && currentDocumentName) {
+                updateDocumentInfo(currentDocumentName, parseInt(progressMatch[1]));
+            }
+        }
+        
+        // Check for end of document
+        if (data.reply.includes("end of")) {
+            updateDocumentInfo(currentDocumentName, 100);
+        }
+        
+        // Check for stop command
+        if (text.toLowerCase().includes("stop")) {
+            updateDocumentInfo("");
+        }
+        
+        speak(data.reply);
+    } catch (e) {
+        console.error("Server error:", e);
+        speak("Sorry, I'm having trouble connecting. Please check if the server is running on port 8000.");
+        statusIndicator.className = "status-indicator status-error";
+        setTimeout(initMicrophone, 3000);
+    }
+}
+
+// Speak response
+function speak(text) {
+    if (isPaused || isStopped) return;
+    
+    stopMicrophone();
+    isSpeaking = true;
+    isReadingDocument = text.includes("[Progress:") || text.includes("Reading");
+    statusIndicator.className = "status-indicator status-active";
+    orbVideo.classList.add("voice-active");
+    orbVideo.classList.remove("voice-listening");
+    
+    // Cancel any ongoing speech
+    synth.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Language detection
+    if (/[\u0900-\u097F]/.test(text)) {
+        utterance.lang = 'hi-IN';
+    } else if (/[\u0C00-\u0C7F]/.test(text)) {
+        utterance.lang = 'te-IN';
+    } else if (/[\u0C80-\u0CFF]/.test(text)) {
+        utterance.lang = 'kn-IN';
+    } else {
+        utterance.lang = 'en-US';
+    }
+    
+    utterance.rate = 0.9;
+    utterance.pitch = 1.1;
+    utterance.volume = 1;
+    
+    utterance.onstart = () => {
+        console.log("🔊 Speaking started");
+    };
+    
+    utterance.onend = () => {
+        console.log("🔊 Speaking ended");
+        isSpeaking = false;
+        orbVideo.classList.remove("voice-active");
+        statusIndicator.className = "status-indicator";
+        
+        playBeep(false);
+        
+        if (!isPaused && !isStopped) {
+            initMicrophone();
+        }
+    };
+    
+    utterance.onerror = (event) => {
+        console.error("Speech error:", event);
+        isSpeaking = false;
+        orbVideo.classList.remove("voice-active");
+        statusIndicator.className = "status-indicator status-error";
+        
+        if (!isPaused && !isStopped) {
+            setTimeout(initMicrophone, 1000);
+        }
+    };
+    
+    synth.speak(utterance);
+}
+
+// Stop reading completely
+function stopReading() {
+    synth.cancel();
+    stopMicrophone();
+    isSpeaking = false;
+    isReadingDocument = false;
+    isPaused = false;
+    isStopped = true;
+    statusIndicator.className = "status-indicator";
+    orbVideo.classList.remove("voice-active");
+    orbVideo.classList.remove("voice-listening");
+    updateDocumentInfo("");
+    playBeep(false);
+}
+
+// Keyboard controls
+window.addEventListener('keydown', (e) => {
+    // Spacebar
+    if (e.code === "Space" && !e.repeat) {
+        e.preventDefault();
+        
+        if (isFirstLaunch) {
+            isFirstLaunch = false;
+            isPaused = false;
+            isStopped = false;
+            
+            playBeep(true);
+            
+            setTimeout(() => {
+                const intro = "Welcome to Learn Out Loud. I can read PDF, Word, and text files from your Documents folder. Try saying: list documents, load filename, read, or summary. Press Escape to pause, F1 to stop.";
+                speak(intro);
+            }, 100);
+        } else {
+            if (isStopped) {
+                isStopped = false;
+                playBeep(true);
+                initMicrophone();
+            } else if (isPaused) {
+                isPaused = false;
+                statusIndicator.className = "status-indicator status-active";
+                playBeep(true);
+                initMicrophone();
+            } else {
+                playBeep(true);
+                initMicrophone();
+            }
+        }
+    }
+    
+    // Escape - Pause
+    if (e.code === "Escape") {
+        e.preventDefault();
+        
+        if (isSpeaking || isReadingDocument) {
+            isPaused = true;
+            statusIndicator.className = "status-indicator status-paused";
+            synth.cancel();
+            stopMicrophone();
+            isSpeaking = false;
+            
+            playBeep(false);
+            
+            const pauseMsg = new SpeechSynthesisUtterance("Paused. Press Spacebar to resume, or F1 to stop.");
+            pauseMsg.rate = 0.9;
+            synth.speak(pauseMsg);
+        }
+    }
+    
+    // F1 - Stop
+    if (e.code === "F1") {
+        e.preventDefault();
+        
+        if (isSpeaking || isReadingDocument || isPaused) {
+            stopReading();
+            
+            const stopMsg = new SpeechSynthesisUtterance("Stopped. Press Spacebar to start again.");
+            stopMsg.rate = 0.9;
+            synth.speak(stopMsg);
+            
+            setTimeout(() => {
+                isStopped = false;
+                initMicrophone();
+            }, 2000);
+        }
+    }
+});
+
+// Manual input handling
+manualInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const text = manualInput.value.trim();
+        if (text) {
+            playBeep(true);
+            stopMicrophone();
+            sendToBackend(text);
+            manualInput.value = '';
+        }
+    }
+});
+
+// Manual mic button
+micBtn.addEventListener('click', () => {
+    if (isFirstLaunch) {
+        isFirstLaunch = false;
+        playBeep(true);
+        setTimeout(() => {
+            const intro = "Welcome to Learn Out Loud. I can read PDF, Word, and text files from your Documents folder. Try saying: list documents, load filename, read, or summary.";
+            speak(intro);
+        }, 100);
+    } else {
+        playBeep(true);
+        initMicrophone();
+    }
+});
+
+// Initialize on page load
+window.onload = () => {
+    console.log("🚀 LearnOutLoud starting...");
+    
+    // Check server connection
+    fetch("http://localhost:8000/health")
+        .then(res => res.json())
+        .then(data => {
+            console.log("✅ Server connected:", data);
+            statusIndicator.className = "status-indicator";
+            
+            // Welcome message after short delay
+            setTimeout(() => {
+                const welcomeMsg = new SpeechSynthesisUtterance("System ready. Press Spacebar to begin.");
+                welcomeMsg.rate = 0.9;
+                synth.speak(welcomeMsg);
+            }, 1000);
+        })
+        .catch(err => {
+            console.error("❌ Server not connected:", err);
+            statusIndicator.className = "status-indicator status-error";
+            alert("Cannot connect to server. Make sure server.py is running on port 8000");
+        });
+};
+
+// Cleanup
+window.onbeforeunload = () => {
+    if (recognition) {
+        recognition.abort();
+    }
+    synth.cancel();
+    if (audioContext) {
+        audioContext.close();
+    }
+};
+</script>
+</body>
+</html>
