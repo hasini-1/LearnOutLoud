@@ -134,7 +134,7 @@ This provides complete control over the learning pace.
 
 ## ⚡ Automatic App Activation
 
-![Automatic App Activation](assets/automatic-app-activation.png)
+![Automatic App Activation](Automatic%20App.png)
 
 The application opens automatically through predefined voice triggers.
 
@@ -200,5 +200,10 @@ By combining AI, accessibility, and automation, we empower blind learners with e
 
 GitHub Repository:  
 👉 https://github.com/hasini-1/LearnOutLoud
+---
+## Requirements
 
+This project requires the  dependencies and environment settings to run correctly. Please ensure these are installed and configured before proceeding with the installation steps. 
+- Run the command  to get requirements.txt 
+pip install -r requirements.txt
 
