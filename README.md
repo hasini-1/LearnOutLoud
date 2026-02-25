@@ -10,7 +10,7 @@
 
 ## 🎯 Mission
 
-![Mission – Voice Assistance](assets/mission-voice-assistance.png)
+![Mission – Voice Assistance](Mission%20Voice%20Assistance.png)
 
 Our mission is to eliminate accessibility barriers in digital education by providing blind learners with a seamless, voice-powered platform that transforms documents into interactive, structured, and intelligent audio experiences.
 
@@ -83,7 +83,7 @@ The system processes commands in real time and responds instantly.
 
 ## 🧠 AI Summarization Engine
 
-![AI Summarization](assets/ai-summarization.png)
+![Secure Authentication](AI%20Summarization.jpeg)
 
 Automatically generates concise and meaningful summaries of sections and chapters.
 
@@ -100,7 +100,7 @@ Blind learners can request summaries anytime using voice commands.
 
 ## 🔐 Secure Authentication
 
-![Secure Authentication](assets/secure-authentication.png)
+![Secure Authentication](Secure%20Authentication.jpeg)
 
 ### Face Recognition Authentication
 
