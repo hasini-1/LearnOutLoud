@@ -1,0 +1,41 @@
+# Backend framework
+fastapi
+uvicorn
+
+# Environment variables
+python-dotenv
+
+# Database
+pymongo
+
+# Voice assistant
+SpeechRecognition
+pyttsx3
+pyaudio
+
+# Document processing
+python-docx
+pdfplumber
+pymupdf
+
+# AI / NLP
+openai
+openai-whisper
+transformers
+torch
+langchain
+
+# Vector search
+faiss-cpu
+
+# Image / Face recognition
+opencv-python
+pillow
+
+# Utilities
+numpy
+requests
+
+# Optional but recommended
+tqdm
+scipy
